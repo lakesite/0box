@@ -6,7 +6,7 @@ package manager
 
 import (
 	"bufio"
-  // "crypto/tls"
+	// "crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -15,11 +15,12 @@ import (
 	"net/mail"
 	"net/smtp"
 	"os"
-  "path/filepath"
+	"path/filepath"
 	"strconv"
+	"strings"
 
+	"github.com/emersion/go-mbox"
 	"github.com/gorilla/mux"
-  "github.com/emersion/go-mbox"
 
 	"github.com/lakesite/ls-config/pkg/config"
 	"github.com/lakesite/ls-fibre/pkg/service"
@@ -30,27 +31,27 @@ var api_key string
 // struct for holding message header and body
 type Message struct {
 	Header mail.Header
-	Body string
+	Body   string
 }
 
 // Handle requests to post mail
 func (ms *ManagerService) PostMailHandler(w http.ResponseWriter, r *http.Request) {
-	from := &mail.Address{r.FormValue("from_name"), r.FormValue("from")}
-	to := &mail.Address{r.FormValue("to_name"), r.FormValue("to")}
+	from := r.FormValue("from") // &mail.Address{r.FormValue("from_name"), r.FormValue("from")}
+	to := r.FormValue("to")     // &mail.Address{r.FormValue("to_name"), r.FormValue("to")}
 	subject := r.FormValue("subject")
 	body := r.FormValue("body")
-  // template (last)
+	// template (last)
 
 	// handle cleaning mail addresses up;
-	r := strings.NewReplacer("\r\n", "", "\r", "", "\n", "", "%0a", "", "%0d", "")
+	replacer := strings.NewReplacer("\r\n", "", "\r", "", "\n", "", "%0a", "", "%0d", "")
 
-	if from.String() == "" {
+	if from /*.String()*/ == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode("Missing form data: from")
 		return
 	}
 
-	if to.String() == "" {
+	if to /*.String()*/ == "" {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode("Missing form data: to")
 		return
@@ -71,14 +72,14 @@ func (ms *ManagerService) PostMailHandler(w http.ResponseWriter, r *http.Request
 	fmt.Printf("from [%s], to [%s], subject [%s], body: %s\n", from, to, subject, body)
 
 	headers := make(map[string]string)
-  headers["From"] = from
-  headers["To"] = to
-  headers["Subject"] = subject
+	headers["From"] = from // .String()
+	headers["To"] = to     // .String()
+	headers["Subject"] = subject
 
 	// Setup message
 	message := ""
-	for k,v := range headers {
-			message += fmt.Sprintf("%s: %s\r\n", k, v)
+	for k, v := range headers {
+		message += fmt.Sprintf("%s: %s\r\n", k, v)
 	}
 	message += "\r\n" + body
 
@@ -92,39 +93,39 @@ func (ms *ManagerService) PostMailHandler(w http.ResponseWriter, r *http.Request
 	defer c.Close()
 
 	// from
-  if err = c.Mail(r.Replace(from)); err != nil {
+	if err = c.Mail(replacer.Replace(from /*.String() */)); err != nil {
 		fmt.Printf("Error: %s\n", err)
 		return
-  }
+	}
 
 	// handle range of recipients
 	// for i := range to {
-  if err = c.Rcpt(r.Replace(to)); err != nil {
+	if err = c.Rcpt(replacer.Replace(to /*.String() */)); err != nil {
 		fmt.Printf("Error: %s\n", err)
 		return
-  }
+	}
 	// }
 
 	// Data
-  cw, err := c.Data()
-  if err != nil {
+	cw, err := c.Data()
+	if err != nil {
 		fmt.Printf("Error: %s\n", err)
 		return
-  }
+	}
 
-  _, err = cw.Write([]byte(message))
-  if err != nil {
+	_, err = cw.Write([]byte(message))
+	if err != nil {
 		fmt.Printf("Error: %s\n", err)
 		return
-  }
+	}
 
-  err = cw.Close()
-  if err != nil {
+	err = cw.Close()
+	if err != nil {
 		fmt.Printf("Error: %s\n", err)
 		return
-  }
+	}
 
-  c.Quit()
+	c.Quit()
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode("Message sent.")
@@ -135,7 +136,7 @@ func (ms *ManagerService) GetMailUserHandler(w http.ResponseWriter, r *http.Requ
 	var messages []*Message
 
 	vars := mux.Vars(r)
-	root := ms.GetSectionPropertyOrDefault("0box", "mboxroot", "/var/mail");
+	root := ms.GetSectionPropertyOrDefault("0box", "mboxroot", "/var/mail")
 
 	// get the username
 	mailbox := root + "/" + vars["user"]
@@ -182,7 +183,7 @@ func (ms *ManagerService) GetMailUserNumberHandler(w http.ResponseWriter, r *htt
 	var message *Message
 
 	vars := mux.Vars(r)
-	root := ms.GetSectionPropertyOrDefault("0box", "mboxroot", "/var/mail");
+	root := ms.GetSectionPropertyOrDefault("0box", "mboxroot", "/var/mail")
 
 	mailbox := root + "/" + vars["user"]
 	if _, err := os.Stat(mailbox); os.IsNotExist(err) {
@@ -193,7 +194,7 @@ func (ms *ManagerService) GetMailUserNumberHandler(w http.ResponseWriter, r *htt
 		box, _ := os.Open(mailbox)
 		mr := mbox.NewReader(box)
 		n, _ := vars["number"]
-		number, _ :=  strconv.Atoi(n)
+		number, _ := strconv.Atoi(n)
 		counter := 1
 		for {
 			nm, err := mr.NextMessage()
@@ -223,7 +224,7 @@ func (ms *ManagerService) GetMailUserNumberHandler(w http.ResponseWriter, r *htt
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	if (message == nil) {
+	if message == nil {
 		json.NewEncoder(w).Encode("No such message number.")
 	} else {
 		json.NewEncoder(w).Encode(message)
@@ -238,7 +239,7 @@ func (ms *ManagerService) DeleteMailUserNumberHandler(w http.ResponseWriter, r *
 	status := "No such message to delete."
 
 	vars := mux.Vars(r)
-	root := ms.GetSectionPropertyOrDefault("0box", "mboxroot", "/var/mail");
+	root := ms.GetSectionPropertyOrDefault("0box", "mboxroot", "/var/mail")
 
 	mailbox := root + "/" + vars["user"]
 	if _, err := os.Stat(mailbox); os.IsNotExist(err) {
@@ -250,7 +251,7 @@ func (ms *ManagerService) DeleteMailUserNumberHandler(w http.ResponseWriter, r *
 		defer box.Close()
 		mr := mbox.NewReader(box)
 		n, _ := vars["number"]
-		number, _ :=  strconv.Atoi(n)
+		number, _ := strconv.Atoi(n)
 		counter := 1
 		for {
 			nm, err := mr.NextMessage()
@@ -279,7 +280,7 @@ func (ms *ManagerService) DeleteMailUserNumberHandler(w http.ResponseWriter, r *
 
 		// truncate box, panic on errors.
 		box.Truncate(0)
-		box.Seek(0,0)
+		box.Seek(0, 0)
 		bw := bufio.NewWriter(box)
 
 		// write it back out, header first (From: )
@@ -306,7 +307,7 @@ func (ms *ManagerService) DeleteMailUserNumberHandler(w http.ResponseWriter, r *
 // Handle requests to delete a user mailbox
 func (ms *ManagerService) DeleteMailUserHandler(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	root := ms.GetSectionPropertyOrDefault("0box", "mboxroot", "/var/mail");
+	root := ms.GetSectionPropertyOrDefault("0box", "mboxroot", "/var/mail")
 
 	mailbox := root + "/" + vars["user"]
 	if _, err := os.Stat(mailbox); os.IsNotExist(err) {
@@ -319,7 +320,7 @@ func (ms *ManagerService) DeleteMailUserHandler(w http.ResponseWriter, r *http.R
 
 		// truncate box, panic on errors.
 		box.Truncate(0)
-		box.Seek(0,0)
+		box.Seek(0, 0)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -330,43 +331,23 @@ func (ms *ManagerService) DeleteMailUserHandler(w http.ResponseWriter, r *http.R
 // Handle requests to list available mailbox users:
 func (ms *ManagerService) GetMailboxesHandler(w http.ResponseWriter, r *http.Request) {
 	var files []string
-  var boxes []string
+	var boxes []string
 
-	root := ms.GetSectionPropertyOrDefault("0box", "mboxroot", "/var/mail");
+	root := ms.GetSectionPropertyOrDefault("0box", "mboxroot", "/var/mail")
 
 	files, err := ms.GetFilesInPath(root)
 	if err != nil {
-			panic(err)
+		panic(err)
 	}
 
 	for _, file := range files {
-			boxes = append(boxes, filepath.Base(file))
+		boxes = append(boxes, filepath.Base(file))
 	}
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	if err = json.NewEncoder(w).Encode(boxes); err != nil {
 		panic(err)
 	}
-}
-
-func LogMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		fmt.Printf("Got request URI: %s\n", r.RequestURI)
-		next.ServeHTTP(w, r)
-	})
-}
-
-func APIKeyMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		apik := r.Header.Get("api_key")
-		if len(apik) == 0 || apik != api_key {
-      w.Header().Add("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode("Invalid api_key")
-			return
-		}
-		next.ServeHTTP(w, r)
-	})
 }
 
 // setupRoutes defines and associates routes to handlers.
@@ -386,7 +367,7 @@ func (ms *ManagerService) setupRoutes(ws *service.WebService) {
 	ws.Router.HandleFunc("/api/0box/v1/mail/{user}/{number}", ms.DeleteMailUserNumberHandler).Methods("DELETE")
 
 	// [6] Secure the API with an API key for all operations.
-	api_key = config.Getenv("0BOX_API_KEY", ms.GetSectionPropertyOrDefault("0box", "apikey", ""));
-	ws.Router.Use(LogMiddleware)
-	ws.Router.Use(APIKeyMiddleware)
+	ws.Apikey = config.Getenv("0BOX_API_KEY", ms.GetSectionPropertyOrDefault("0box", "apikey", ""))
+	ws.Router.Use(ws.LogMiddleware)
+	ws.Router.Use(ws.APIKeyMiddleware)
 }

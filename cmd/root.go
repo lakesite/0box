@@ -36,7 +36,6 @@ var (
 			fmt.Println("0box v0.1a")
 		},
 	}
-
 )
 
 func init() {
