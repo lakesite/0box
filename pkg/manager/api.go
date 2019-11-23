@@ -44,26 +44,22 @@ func (ms *ManagerService) PostMailHandler(w http.ResponseWriter, r *http.Request
 	replacer := strings.NewReplacer("\r\n", "", "\r", "", "\n", "", "%0a", "", "%0d", "")
 
 	if from /*.String()*/ == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode("Missing form data: from")
+		ms.WebService.JsonStatusResponse(w, "Missing form data: from", http.StatusBadRequest)
 		return
 	}
 
 	if to /*.String()*/ == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode("Missing form data: to")
+		ms.WebService.JsonStatusResponse(w, "Missing form data: to", http.StatusBadRequest)
 		return
 	}
 
 	if subject == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode("Missing form data: subject")
+		ms.WebService.JsonStatusResponse(w, "Missing form data: subject", http.StatusBadRequest)
 		return
 	}
 
 	if body == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode("Missing form data: body")
+		ms.WebService.JsonStatusResponse(w, "Missing form data: body", http.StatusBadRequest)
 		return
 	}
 
@@ -84,22 +80,21 @@ func (ms *ManagerService) PostMailHandler(w http.ResponseWriter, r *http.Request
 	// Handle plain jane susie mary localhost authenticary
 	c, err := smtp.Dial("127.0.0.1:25")
 	if err != nil {
-		// 500
-		fmt.Printf("Error: %s\n", err)
+		ms.WebService.JsonStatusResponse(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	defer c.Close()
 
 	// from
 	if err = c.Mail(replacer.Replace(from /*.String() */)); err != nil {
-		fmt.Printf("Error: %s\n", err)
+		ms.WebService.JsonStatusResponse(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	// handle range of recipients
 	// for i := range to {
 	if err = c.Rcpt(replacer.Replace(to /*.String() */)); err != nil {
-		fmt.Printf("Error: %s\n", err)
+		ms.WebService.JsonStatusResponse(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	// }
@@ -107,26 +102,25 @@ func (ms *ManagerService) PostMailHandler(w http.ResponseWriter, r *http.Request
 	// Data
 	cw, err := c.Data()
 	if err != nil {
-		fmt.Printf("Error: %s\n", err)
+		ms.WebService.JsonStatusResponse(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	_, err = cw.Write([]byte(message))
 	if err != nil {
-		fmt.Printf("Error: %s\n", err)
+		ms.WebService.JsonStatusResponse(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	err = cw.Close()
 	if err != nil {
-		fmt.Printf("Error: %s\n", err)
+		ms.WebService.JsonStatusResponse(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	c.Quit()
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode("Message sent.")
+	ms.WebService.JsonStatusResponse(w, "Message sent.", http.StatusOK)
 }
 
 // Handle requests to return all a user's mail
@@ -141,9 +135,7 @@ func (ms *ManagerService) GetMailUserHandler(w http.ResponseWriter, r *http.Requ
 	// if root + /username does not exist return json no user
 	if _, err := os.Stat(mailbox); os.IsNotExist(err) {
 		// no user
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode("No such mailbox user.")
+		ms.WebService.JsonStatusResponse(w, "No such mailbox user.", http.StatusOK)
 		return
 	} else {
 		// read;
@@ -155,15 +147,13 @@ func (ms *ManagerService) GetMailUserHandler(w http.ResponseWriter, r *http.Requ
 			if err == io.EOF {
 				break
 			} else if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(err)
+				ms.WebService.JsonStatusResponse(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 
 			msg, err := mail.ReadMessage(nm)
 			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(err)
+				ms.WebService.JsonStatusResponse(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			body, _ := ioutil.ReadAll(msg.Body)
@@ -185,9 +175,7 @@ func (ms *ManagerService) GetMailUserNumberHandler(w http.ResponseWriter, r *htt
 
 	mailbox := root + "/" + vars["user"]
 	if _, err := os.Stat(mailbox); os.IsNotExist(err) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode("No such mailbox user.")
+		ms.WebService.JsonStatusResponse(w, "No such mailbox user.", http.StatusOK)
 	} else {
 		box, _ := os.Open(mailbox)
 		mr := mbox.NewReader(box)
@@ -199,15 +187,13 @@ func (ms *ManagerService) GetMailUserNumberHandler(w http.ResponseWriter, r *htt
 			if err == io.EOF {
 				break
 			} else if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(err)
+				ms.WebService.JsonStatusResponse(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			if counter == number {
 				msg, err := mail.ReadMessage(nm)
 				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					json.NewEncoder(w).Encode(err)
+					ms.WebService.JsonStatusResponse(w, err.Error(), http.StatusInternalServerError)
 					return
 				}
 				body, _ := ioutil.ReadAll(msg.Body)
@@ -241,9 +227,7 @@ func (ms *ManagerService) DeleteMailUserNumberHandler(w http.ResponseWriter, r *
 
 	mailbox := root + "/" + vars["user"]
 	if _, err := os.Stat(mailbox); os.IsNotExist(err) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode("No such mailbox user.")
+		ms.WebService.JsonStatusResponse(w, "No such mailbox user.", http.StatusOK)
 	} else {
 		box, _ := os.OpenFile(mailbox, os.O_RDWR, 0600)
 		defer box.Close()
@@ -256,15 +240,13 @@ func (ms *ManagerService) DeleteMailUserNumberHandler(w http.ResponseWriter, r *
 			if err == io.EOF {
 				break
 			} else if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(err)
+				ms.WebService.JsonStatusResponse(w, err.Error(), http.StatusInternalServerError)
 				return
 			}
 			if counter != number {
 				msg, err := mail.ReadMessage(nm)
 				if err != nil {
-					w.WriteHeader(http.StatusInternalServerError)
-					json.NewEncoder(w).Encode(err)
+					ms.WebService.JsonStatusResponse(w, err.Error(), http.StatusInternalServerError)
 					return
 				}
 				body, _ := ioutil.ReadAll(msg.Body)
@@ -297,9 +279,7 @@ func (ms *ManagerService) DeleteMailUserNumberHandler(w http.ResponseWriter, r *
 		}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(status)
+	ms.WebService.JsonStatusResponse(w, status, http.StatusOK)
 }
 
 // Handle requests to delete a user mailbox
@@ -309,9 +289,7 @@ func (ms *ManagerService) DeleteMailUserHandler(w http.ResponseWriter, r *http.R
 
 	mailbox := root + "/" + vars["user"]
 	if _, err := os.Stat(mailbox); os.IsNotExist(err) {
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode("No such mailbox.")
+		ms.WebService.JsonStatusResponse(w, "No such mailbox.", http.StatusOK)
 	} else {
 		box, _ := os.OpenFile(mailbox, os.O_RDWR, 0600)
 		defer box.Close()
@@ -321,9 +299,7 @@ func (ms *ManagerService) DeleteMailUserHandler(w http.ResponseWriter, r *http.R
 		box.Seek(0, 0)
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode("Deleted.")
+	ms.WebService.JsonStatusResponse(w, "Deleted.", http.StatusOK)
 }
 
 // Handle requests to list available mailbox users:
@@ -341,11 +317,8 @@ func (ms *ManagerService) GetMailboxesHandler(w http.ResponseWriter, r *http.Req
 	for _, file := range files {
 		boxes = append(boxes, filepath.Base(file))
 	}
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-	if err = json.NewEncoder(w).Encode(boxes); err != nil {
-		panic(err)
-	}
+
+	ms.WebService.JsonStatusResponse(w, strings.Join(boxes, ","), http.StatusOK)
 }
 
 // setupRoutes defines and associates routes to handlers.
@@ -366,6 +339,8 @@ func (ms *ManagerService) setupRoutes(ws *service.WebService) {
 
 	// [6] Secure the API with an API key for all operations.
 	ws.Apikey = config.Getenv("0BOX_API_KEY", ms.GetSectionPropertyOrDefault("0box", "apikey", ""))
+
 	ws.Router.Use(ws.LogMiddleware)
 	ws.Router.Use(ws.APIKeyMiddleware)
+
 }
