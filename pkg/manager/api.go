@@ -26,8 +26,6 @@ import (
 	"github.com/lakesite/ls-fibre/pkg/service"
 )
 
-var api_key string
-
 // struct for holding message header and body
 type Message struct {
 	Header mail.Header
