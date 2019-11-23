@@ -1,0 +1,3 @@
+[0box]
+apikey="secretkey"
+mboxroot="/var/mail"
