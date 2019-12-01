@@ -25,7 +25,7 @@ func init() {
 
 func TestManagementService(t *testing.T) {
 	address := config.Getenv("0BOX_HOST", "127.0.0.1") + ":" + config.Getenv("0BOX_PORT", "6999")
-	ws := service.NewService("0box", address)
+	ws := fibre.NewService("0box", address)
 
 	if ws == nil {
 		t.Errorf("0box management service initialization failed")

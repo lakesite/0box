@@ -22,8 +22,8 @@ import (
 	"github.com/emersion/go-mbox"
 	"github.com/gorilla/mux"
 
-	"github.com/lakesite/ls-config/pkg/config"
-	"github.com/lakesite/ls-fibre/pkg/service"
+	"github.com/lakesite/ls-config"
+	"github.com/lakesite/ls-fibre"
 )
 
 // struct for holding message header and body
@@ -322,7 +322,7 @@ func (ms *ManagerService) GetMailboxesHandler(w http.ResponseWriter, r *http.Req
 }
 
 // setupRoutes defines and associates routes to handlers.
-func (ms *ManagerService) setupRoutes(ws *service.WebService) {
+func (ms *ManagerService) setupRoutes(ws *fibre.WebService) {
 	// [1, 2]: POST /api/0box/v1/mail/
 	ws.Router.HandleFunc("/api/0box/v1/mail/", ms.PostMailHandler).Methods("POST")
 
